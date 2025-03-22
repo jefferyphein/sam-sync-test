@@ -93,15 +93,12 @@ This will edit each `__editable__.*.pth` file in-place, replacing the `/tmp/tmp.
 of an editable installation. These files simply contain a directory where the code is located.
 This ensures that the editable path can be found within the container.
 
-This is not quite enough though, because we've now copied the upstream code we want to modify into
-the artifacts directory, and so we would still need to run `sam build` every time we modify the
-upstream dependency, which may be a complex and time-consuming process.
+This is not quite enough though, because the upstream code wasn't copied into the artifacts
+directory, and so we won't be able to find the upstream code inside of the container.
 
-To address this, we'll additionally *delete* the copied upstream package within our artifacts
-directory, then replace it with a symlink that points to the cloned repository within our lambda
-directory. This requires adding the following lines to your makefile:
+To address this, we'll also create a symlink that points to the cloned repository within our lambda
+directory. To do this, add the following line to your makefile:
 
-    rm -rf $(ARTIFACTS_DIR)/<my-dependency-name>
     ln -s /path/to/lambda/directory/<my-dependency-name> $(ARTIFACTS_DIR)/<my-depenency-name>
 
 For the sake of this example, the path to the lambda directory is where I've cloned my lambda's git
@@ -114,43 +111,43 @@ Now we are all set up! We should be able to make modifications to the upstream d
 ## Building
 
 With all of this set up, we can now run `sam build` and it will update our editable symlinks, as
-well as redirect things to the correct place.
+well as redirect our upstream dependencies to the correct place.
 
 You should now see the output of `pip install` followed by "Build Succeeded" in your terminal.
 
 ### Local invocation
 
 Running `sam local invoke` should now also work correctly. At this point, you can make modifications
-to either your lambda function or its upstream dependencies and see those changes reflected in the
-output of this command.
+to the upstream dependency and see those changes immediately reflected when running this command
+again.
 
-When running this command, you should see the following preamble output:
+To verify this is working correctly, you should output that looks similar to the following:
 
     Mounting resolved symlink (/path/to/sam-sync-test/.aws-sam/build/HelloWorldFunction/sam-sync-test-upstream -> /path/to/sam-sync-test/hello_world/sam-sync-test-upstream) as /var/task/sam-sync-test-upstream:ro,delegated, inside runtime container
 
-This provides an explicit indication that the symlink set up as part of the makefile has been
-correctly includes in the runtime container.
+This provides an explicit indication that the symlink we created has been correctly mounted into the
+runtime container.
 
 Note that it is no longer necessary to run `sam build` when updating upstream dependencies! However,
-it must be run when updating the lambda itself. This requirement can likely be relaxed by creating
-a symlink for the lambda module in a similar manner as was done for the upstream module.
+it must be run when updating the lambda itself. By also creating symlinks for the lambda in a similar
+manner, we can edit both the lambda and upstream dependencies without the need to run `sam build`
+repeatedly.
 
 ### Remote synchronization
 
 You can now also run `sam sync --watch` and observe as your local changes to your lambda directory
 get pushed to AWS for both your lambda as well as any upstream dependencies you've configured using
-this method. Make sure to include the `--code` option if you don't want deployments to be
-reprovisioned.
+this method.
+
+Note that when any of the files located in your lambda directory are now modified, the
+`build-HelloWorldFunction` build target will be run locally, then synchronize with AWS. This can
+get costly if making a lot of minor updates, so be mindful.
 
 What makes this work is the fact that the upstream source code has been cloned into the directory
 being watched by `sam sync` in combination with the additional commands included in the makefile
-to both update the editable links as well as symlink the upstream artifacts directory to the actual
-source code.
-
-When any of the files located in your lambda directory are modified, the `build-HelloWorldFunction`
-build target will be run locally, then synchronized with AWS.
+to both update the editable links as well as symlink the upstream package to its actual source.
 
 ## Finishing Up
 
-Once you're completed development, you'll need to remember to restore both the makefile and the
-requirements file to their original state.
+Once you're done developing, make sure to restore both the makefile and the requirements file to
+their original state.
