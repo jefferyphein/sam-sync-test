@@ -1,0 +1,4 @@
+[project]
+name = "sam-sync-test-upstream"
+version = "0.1.0"
+dependencies = []

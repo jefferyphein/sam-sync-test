@@ -1,0 +1,2 @@
+-e ./sam-sync-test-upstream
+requests
