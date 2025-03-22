@@ -114,13 +114,13 @@ well as redirect things to the correct place.
 
 You should now see the output of `pip install` followed by "Build Succeeded" in your terminal.
 
-## Local invocation
+### Local invocation
 
 Running `sam local invoke` should now also work correctly. At this point, you can make modifications
 to either your lambda function or its upstream dependencies and see those changes reflected in the
 output of this command.
 
-## Remote synchronization
+### Remote synchronization
 
 You can also now run `sam sync --watch` and watch your changes get pushed to AWS for both your
 lambda as well as any upstream dependencies you've configured using this method.
