@@ -1,8 +1,8 @@
 # AWS SAM Sync Experiment
 
-The purpose of this repository is to outline a somewhat "easy" way to be able to make modifications
-to AWS Lambda functions as well as upstream dependencies in a way that is compatible with `sam local
-invoke` as well as `sam sync --watch`.
+The purpose of this repository is to outline an "easy"--but kinda hacky--way to be able to make
+modifications to AWS Lambda functions as well as its upstream dependencies in a way that is
+compatible with `sam local invoke` as well as `sam sync --watch`.
 
 ## The problem
 
@@ -26,7 +26,7 @@ couple simple workarounds to get things up and running.
 ### The makefile
 
 First thing to note is that we'll use the "makefile" build method. This requires updating the
-[template file](templates.yaml) and adding the following lines to your lambda, which we've named
+[template file](template.yaml) and adding the following lines to your lambda, which we've named
 "HelloWorldFunction" for the sake of this project:
 
 ```yaml
@@ -39,7 +39,8 @@ Resources:
 Additionally, we must place a [Makefile](hello_world/Makefile) within the lambda's directory with a
 target named `build-HelloWorldFunction`.
 
-Following the [AWS tutorial for makefiles](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/building-custom-runtimes.html),
+Following the [AWS tutorial for
+makefiles](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/building-custom-runtimes.html),
 we will make some minor modifications to address some quirks of working with editable installs.
 
 ### The requirements file
@@ -74,28 +75,31 @@ where `pip install` can be run.
 
 ### Some initial issues
 
-In an ideal world, this would *Just Work*, however, due to how `sam` works, without some extra
-modifications to the [makefile](hello_world/Makefile). If we simply just run `pip install`, what
-happens is that our cloned upstream repository is copied into a `/tmp` directory, then the edit
-symlink artifacts that gets placed in your `site-packages` directory will contain a path that
-looks like `/tmp/tmpxyz.../my-dependency/src`. This is a problem!
+In an ideal world, this would *Just Work*, however, due to how `sam` works, we need to make some
+extra modifications to the [makefile](hello_world/Makefile). If we simply just run `pip install`,
+what happens is that our cloned upstream repository is copied into a `/tmp` directory, then the
+editable symlink artifacts that gets placed in your `site-packages` directory will contain a path
+that looks like `/tmp/tmpxyz.../my-dependency/src`. This is a problem!
 
-To address this, as part of the build, we will mangle that path to point to the correct location
-within the container where the lambda will be run, `/var/task`. We do this by adding the following
-line to our makefile:
+To address this, we'll mangle the temporary path so that it points to the correct location *within
+the container* as an epilogue to the `pip install`. The lambda and all of its dependendies will be
+located within the `/var/task` inside of the container, and so we will start by modifying the
+appropriate symlinks as follows within our makefile:
 
     find $(ARTIFACTS_DIR) -type f -name '__editable__.*.pth' -exec sed -i 's|/tmp/tmp[^/]*/|/var/task/|g' {} \;
 
 This will edit each `__editable__.*.pth` file in-place, replacing the `/tmp/tmp.../` with
-`/var/task/`. This ensures that the editable path can be found within the container.
+`/var/task/`. These files are placed within our `site-packages` directory by `setuptools` as part
+of an editable installation. These files simply contain a directory where the code is located.
+This ensures that the editable path can be found within the container.
 
 This is not quite enough though, because we've now copied the upstream code we want to modify into
-the artifacts directory, and so we still would need to run `sam build` every time we modify the
-upstream dependency.
+the artifacts directory, and so we would still need to run `sam build` every time we modify the
+upstream dependency, which may be a complex and time-consuming process.
 
-To address this, we will additionally *delete* the copied upstream package directory within our
-artifacts directory and replace it with an identical symbolic link that points to the actual cloned
-directory within our lambda directory. This requires adding the following lines to your makefile:
+To address this, we'll additionally *delete* the copied upstream package within our artifacts
+directory, then replace it with a symlink that points to the cloned repository within our lambda
+directory. This requires adding the following lines to your makefile:
 
     rm -rf $(ARTIFACTS_DIR)/<my-dependency-name>
     ln -s /path/to/lambda/directory/<my-dependency-name> $(ARTIFACTS_DIR)/<my-depenency-name>
@@ -105,7 +109,7 @@ repository: `/home/jeff/src/sam-sync-test/hello_world` and the name of the depen
 `sam-sync-test-upstream`. My [personal Makefile](hello_world/Makefile) reflects these values. Your
 own implementation will differ slightly.
 
-Now we are all set up!
+Now we are all set up! We should be able to make modifications to the upstream dependencies.
 
 ## Building
 
@@ -145,3 +149,8 @@ source code.
 
 When any of the files located in your lambda directory are modified, the `build-HelloWorldFunction`
 build target will be run locally, then synchronized with AWS.
+
+## Finishing Up
+
+Once you're completed development, you'll need to remember to restore both the makefile and the
+requirements file to their original state.
