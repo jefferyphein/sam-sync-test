@@ -1,125 +1,134 @@
-# sam-sync-test
+# AWS SAM Sync Experiment
 
-This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
+The purpose of this repository is to outline a somewhat "easy" way to be able to make modifications
+to AWS Lambda functions as well as upstream dependencies in a way that is compatible with `sam local
+invoke` as well as `sam sync --watch`.
 
-- hello_world - Code for the application's Lambda function.
-- events - Invocation events that you can use to invoke the function.
-- tests - Unit tests for the application code. 
-- template.yaml - A template that defines the application's AWS resources.
+## The problem
 
-The application uses several AWS resources, including Lambda functions and an API Gateway API. These resources are defined in the `template.yaml` file in this project. You can update the template to add AWS resources through the same deployment process that updates your application code.
+When making upstream changes to a lambda, you need to update the layer associated to the upstream
+dependencies for the lambda. This is often done by adding the changes to a zip file and pushing that
+zip file to AWS. This can be cumbersome and time consuming.
 
-If you prefer to use an integrated development environment (IDE) to build and test your application, you can use the AWS Toolkit.  
-The AWS Toolkit is an open source plug-in for popular IDEs that uses the SAM CLI to build and deploy serverless applications on AWS. The AWS Toolkit also adds a simplified step-through debugging experience for Lambda function code. See the following links to get started.
+When upstream packages are maintained by you or your organization, however, making changes and
+"compiling" those changes into a zip file can be slow, tedious, and annoying.
 
-* [CLion](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [GoLand](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [IntelliJ](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [WebStorm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [Rider](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [PhpStorm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [PyCharm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [RubyMine](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [VS Code](https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/welcome.html)
-* [Visual Studio](https://docs.aws.amazon.com/toolkit-for-visual-studio/latest/user-guide/welcome.html)
+## The solution
 
-## Deploy the sample application
+For Python projects, we will take advantage of [editable
+installs](https://setuptools.pypa.io/en/latest/userguide/development_mode.html) to take advantage of
+their ability to make local changes without needing to either rebuild the source distribution or
+re-run `pip install`.
 
-The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications. It uses Docker to run your functions in an Amazon Linux environment that matches Lambda. It can also emulate your application's build environment and API.
+However, it does not appear that this approach works natively with AWS Lambda, and so we'll need a
+couple simple workarounds to get things up and running.
 
-To use the SAM CLI, you need the following tools.
+### The makefile
 
-* SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-* [Python 3 installed]
-* Docker - [Install Docker community edition](https://hub.docker.com/search/?type=edition&offering=community)
-
-To build and deploy your application for the first time, run the following in your shell:
-
-```bash
-sam build
-sam deploy --guided
-```
-
-The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:
-
-* **Stack Name**: The name of the stack to deploy to CloudFormation. This should be unique to your account and region, and a good starting point would be something matching your project name.
-* **AWS Region**: The AWS region you want to deploy your app to.
-* **Confirm changes before deploy**: If set to yes, any change sets will be shown to you before execution for manual review. If set to no, the AWS SAM CLI will automatically deploy application changes.
-* **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
-* **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
-
-You can find your API Gateway Endpoint URL in the output values displayed after deployment.
-
-## Use the SAM CLI to build and test locally
-
-Build your application with the `sam build` command.
-
-```bash
-sam-sync-test$ sam build
-```
-
-The SAM CLI installs dependencies defined in `hello_world/requirements.txt`, creates a deployment package, and saves it in the `.aws-sam/build` folder.
-
-Test a single function by invoking it directly with a test event. An event is a JSON document that represents the input that the function receives from the event source. Test events are included in the `events` folder in this project.
-
-Run functions locally and invoke them with the `sam local invoke` command.
-
-```bash
-sam-sync-test$ sam local invoke HelloWorldFunction --event events/event.json
-```
-
-The SAM CLI can also emulate your application's API. Use the `sam local start-api` to run the API locally on port 3000.
-
-```bash
-sam-sync-test$ sam local start-api
-sam-sync-test$ curl http://localhost:3000/
-```
-
-The SAM CLI reads the application template to determine the API's routes and the functions that they invoke. The `Events` property on each function's definition includes the route and method for each path.
+First thing to note is that we'll use the "makefile" build method. This requires updating the
+[template file](templates.yaml) and adding the following lines to your lambda, which we've named
+"HelloWorldFunction" for the sake of this project:
 
 ```yaml
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
+Resources:
+  HelloWorldFunction:
+    Metadata:
+      BuildMethod: makefile
 ```
 
-## Add a resource to your application
-The application template uses AWS Serverless Application Model (AWS SAM) to define application resources. AWS SAM is an extension of AWS CloudFormation with a simpler syntax for configuring common serverless application resources such as functions, triggers, and APIs. For resources not included in [the SAM specification](https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md), you can use standard [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) resource types.
+Additionally, we must place a [Makefile](hello_world/Makefile) within the lambda's directory with a
+target named `build-HelloWorldFunction`.
 
-## Fetch, tail, and filter Lambda function logs
+Following the [AWS tutorial for makefiles](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/building-custom-runtimes.html),
+we will make some minor modifications to address some quirks of working with editable installs.
 
-To simplify troubleshooting, SAM CLI has a command called `sam logs`. `sam logs` lets you fetch logs generated by your deployed Lambda function from the command line. In addition to printing the logs on the terminal, this command has several nifty features to help you quickly find the bug.
+### The requirements file
 
-`NOTE`: This command works for all AWS Lambda functions; not just the ones you deploy using SAM.
+For each dependency your lambda has, you will typically add a line within your requirements
+file like the following:
 
-```bash
-sam-sync-test$ sam logs -n HelloWorldFunction --stack-name sam-sync-test --tail
-```
+    my-dependency==1.2.3
+    my-other-dependency=3.2.1
 
-You can find more information and examples about filtering Lambda function logs in the [SAM CLI Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-logging.html).
+However, if we *own* those dependencies and want to make *live* modifications to them, this approach
+does not work very well.
 
-## Unit tests
+### Editable installs
 
-Tests are defined in the `tests` folder in this project. Use PIP to install the [pytest](https://docs.pytest.org/en/latest/) and run unit tests.
+Instead of working with requirements of the form `my-dependency==1.2.3` during the development
+phase, we will instead use editable installs and *temporarily* update our requirements file to
+redirect to our local changes. This requires two steps:
 
-```bash
-sam-sync-test$ pip install pytest pytest-mock --user
-sam-sync-test$ python -m pytest tests/ -v
-```
+1. Clone the dependency's project into the lambda's root directory.
 
-## Cleanup
+2. Update the requirements file replacing the `my-dependency==1.2.3` line with
 
-To delete the sample application that you created, use the AWS CLI. Assuming you used your project name for the stack name, you can run the following:
+    ```
+    -e ./my-dependency/path/to/setup/directory
+    ```
 
-```bash
-aws cloudformation delete-stack --stack-name sam-sync-test
-```
+In our example, we have already "cloned" the upstream dependency into [the
+`hello_world/sam-sync-test-upstream` directory](hello_world/sam-sync-test-upstream). We've also
+modified the [requirements file](hello_world/requirements.txt) to point to the appropriate directory
+where `pip install` can be run.
 
-## Resources
+### Some initial issues
 
-See the [AWS SAM developer guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for an introduction to SAM specification, the SAM CLI, and serverless application concepts.
+In an ideal world, this would *Just Work*, however, due to how `sam` works, without some extra
+modifications to the [makefile](hello_world/Makefile). If we simply just run `pip install`, what
+happens is that our cloned upstream repository is copied into a `/tmp` directory, then the edit
+symlink artifacts that gets placed in your `site-packages` directory will contain a path that
+looks like `/tmp/tmpxyz.../my-dependency/src`. This is a problem!
 
-Next, you can use AWS Serverless Application Repository to deploy ready to use Apps that go beyond hello world samples and learn how authors developed their applications: [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/)
+To address this, as part of the build, we will mangle that path to point to the correct location
+within the container where the lambda will be run, `/var/task`. We do this by adding the following
+line to our makefile:
+
+    find $(ARTIFACTS_DIR) -type f -name '__editable__.*.pth' -exec sed -i 's|/tmp/[^/]*/|/var/task/|g' {} \;
+
+This will edit each `__editable__.*.pth` file in-place, replacing the `/tmp/tmp.../` with
+`/var/task/`. This ensures that the editable path can be found within the container.
+
+This is not quite enough though, because we've now copied the upstream code we want to modify into
+the artifacts directory, and so we still would need to run `sam build` every time we modify the
+upstream dependency.
+
+To address this, we will additionally *delete* the copied upstream package directory within our
+artifacts directory and replace it with an identical symbolic link that points to the actual cloned
+directory within our lambda directory. This requires adding the following lines to your makefile:
+
+    rm -rf $(ARTIFACTS_DIR)/<my-dependency-name>
+    ln -s /path/to/lambda/directory/<my-dependency-name> $(ARTIFACTS_DIR)/<my-depenency-name>
+
+For the sake of this example, the path to the lambda directory is where I've cloned my lambda's git
+repository: `/home/jeff/src/sam-sync-test/hello_world` and the name of the dependency is
+`sam-sync-test-upstream`. My [personal Makefile](hello_world/Makefile) reflects these values. Your
+own implementation will differ slightly.
+
+Now we are all set up!
+
+## Building
+
+With all of this set up, we can now run `sam build` and it will update our editable symlinks, as
+well as redirect things to the correct place.
+
+You should now see the output of `pip install` followed by "Build Succeeded" in your terminal.
+
+## Local invocation
+
+Running `sam local invoke` should now also work correctly. At this point, you can make modifications
+to either your lambda function or its upstream dependencies and see those changes reflected in the
+output of this command.
+
+## Remote synchronization
+
+You can also now run `sam sync --watch` and watch your changes get pushed to AWS for both your
+lambda as well as any upstream dependencies you've configured using this method.
+
+What makes this work is the fact that the upstream source code has been cloned into the directory
+being watched by `sam sync` in combination with the additional commands included in the makefile
+to both update the editable links as well as symlink the upstream artifacts directory to the actual
+source code.
+
+When any of the files located in your lambda directory are modified, the `build-HelloWorldFunction`
+build target is run, setting things up for you automatically.
