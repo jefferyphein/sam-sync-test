@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  optional-layers
+
+  Sample SAM Template for optional-layers
+
+Globals:
+  Function:
+    Timeout: 3
+    Layers: !If [ UseLayers, [ !Ref SharedLayer ], [ ] ]
+
+Resources:
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Condition: UseLayers
+    Properties:
+      ContentUri: deps/
+      CompatibleRuntimes:
+        - python3.12
+    Metadata:
+      BuildMethod: python3.12
+
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+    Metadata:
+      BuildMethod: !If [ UseLayers, makefile, python3.12 ]
+
+  FooBarFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: foo_bar/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /foo
+            Method: get
+    Metadata:
+      BuildMethod: !If [ UseLayers, makefile, python3.12 ]
+
+Parameters:
+  BuildWithLayers:
+    Description: Build deployment using layers.
+    Type: String
+    Default: "No"
+    AllowedValues:
+      - "Yes"
+      - "No"
+
+Conditions:
+  UseLayers: !Equals [ !Ref BuildWithLayers, "Yes" ]
+
+Outputs:
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  HelloWorldFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt HelloWorldFunction.Arn
+  HelloWorldFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt HelloWorldFunctionRole.Arn
+  FooBarApi:
+    Description: "API Gateway endpoint URL for Prod stage for Foo Bar function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/foo/"
+  FooBarFunction:
+    Description: "Foo Bar Lambda Function ARN"
+    Value: !GetAtt FooBarFunction.Arn
+  FooBarFunctionIamRole:
+    Description: "Implicit IAM Role created for Foo Bar function"
+    Value: !GetAtt FooBarFunctionRole.Arn
