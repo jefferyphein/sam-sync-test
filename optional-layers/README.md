@@ -11,15 +11,15 @@ able to effortlessly disable layers during production.
 
 ## The solution
 
-Use CloudFormation templating with parameters to switch between a with layers-approach and a
+Use CloudFormation templating with parameters to switch between a with-layers approach and a
 without-layers approach.
 
 ### The lambdas
 
 This repository contains two lambda functions: [hello_world](hello_world/app.py) and
 [foo_bar](foo_bar/app.py). Each of these lambdas has the same requirements, and so it would be nice
-to package their dependencies separately to redundancies during deployment, save bandwidth, save S3
-disk space, etc.
+to package their dependencies separately to reduce redundancies during deployment, save bandwidth,
+save S3 disk space, etc.
 
 ### The requirements file
 
