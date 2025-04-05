@@ -97,7 +97,7 @@ circumstances.
 
 For example:
 
-```makefile
+```make
 build-HelloWorldFunction:
 	# do something special
 
