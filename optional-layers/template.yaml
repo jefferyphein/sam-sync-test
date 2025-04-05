@@ -20,6 +20,7 @@ Resources:
         - python3.12
     Metadata:
       BuildMethod: python3.12
+    RetentionPolicy: Delete
 
   HelloWorldFunction:
     Type: AWS::Serverless::Function
@@ -56,16 +57,16 @@ Resources:
       BuildMethod: !If [ UseLayers, makefile, python3.12 ]
 
 Parameters:
-  BuildWithLayers:
-    Description: Build deployment using layers.
+  DeployWithLayers:
+    Description: Whether or not to deploy the stack using layers.
     Type: String
-    Default: "No"
+    Default: 'No'
     AllowedValues:
-      - "Yes"
-      - "No"
+      - 'Yes'
+      - 'No'
 
 Conditions:
-  UseLayers: !Equals [ !Ref BuildWithLayers, "Yes" ]
+  UseLayers: !Equals [ !Ref DeployWithLayers, 'Yes' ]
 
 Outputs:
   HelloWorldApi:
