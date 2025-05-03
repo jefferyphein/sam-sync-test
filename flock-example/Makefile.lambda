@@ -1,0 +1,8 @@
+build-%:
+	cp -r . "$(ARTIFACTS_DIR)"
+	"$(ARTIFACTS_DIR)/install.sh" "$(ARTIFACTS_DIR)"
+	@rm -rf "$(ARTIFACTS_DIR)/bin" \
+		"$(ARTIFACTS_DIR)/.INSTALLED" \
+		"$(ARTIFACTS_DIR)/requirements.txt" \
+		"$(ARTIFACTS_DIR)/install.sh" \
+		"$(ARTIFACTS_DIR)/Makefile"
