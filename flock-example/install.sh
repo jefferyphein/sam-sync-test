@@ -3,18 +3,31 @@
 # Arguments to this script are as follows:
 #
 #   $1 -> the artifacts directory (i.e. the build directory for the lambda).
-#   $2 -> an argument indicating to run the protected locked command. Any value
+#   $2 -> an argument indicating to run the protected command. Any value
 #         will suffice, as long as it is non-empty.
 #
-# We assume that this directory contains a file named "requirements.txt"
-#
+
+set -euo pipefail
+
+if ! command -v flock >/dev/null; then
+  echo "Cannot find 'flock' command."
+  exit 1
+fi
+
+artifacts_dir="$1"
+requirements="${artifacts_dir}/requirements.txt"
+
+# Assume that the artifacts directory contains "requirements.txt"
+if [ ! -e "$requirements" ]; then
+  echo "Artifacts directory must contain 'requirements.txt' file."
+  exit 1
+fi
 
 # Calculate the SHA1 hash of the requirements.txt file.
-requirements="${1}/requirements.txt"
 requirements_sha1=$(sha1sum "$requirements" | awk '{print $1}')
 
 # Find the .aws-sam/ root directory.
-aws_sam_dir="${1%/.aws-sam/*}/.aws-sam"
+aws_sam_dir="${artifacts_dir%/.aws-sam/*}/.aws-sam"
 
 # Determine the paths we need and create directories, if necessary.
 install_dir="$aws_sam_dir/pip-install/$requirements_sha1"
@@ -23,14 +36,14 @@ lock_file="$install_dir/.aws-sam.lock"
 mkdir -p "$install_dir"
 
 # This block is run outside of the lock.
-if [ -z "$2" ]; then
+if [ $# -gt 1 ] && [ -z "$2" ]; then
   # Block until the lock is acquired and the protected code returns.
-  flock "$lock_file" "$0" "$1" "run_with_lock"
+  flock "$lock_file" "$0" "$artifacts_dir" "run_with_lock"
 
   # Once the lock is released, copy the installed artifacts only if certain
   # conditions are met.
   if [ -e "$install_dir/.INSTALLED" ] && [ ! -e "$install_dir/.FAILED" ]; then
-    cp -r "$install_dir/." "$1"
+    cp -r "$install_dir/." "$artifacts_dir"
   fi
 
 # This block is run within the lock.
@@ -39,6 +52,7 @@ else
   if [ -e "$install_dir/.FAILED" ]; then
     echo "Install failed, refusing to proceed."
     exit 1
+  fi
 
   # Only run "pip install" if the .INSTALLED file doesn't exist.
   # NOTE: We cannot use the lock file here, because it will be created by "flock".
